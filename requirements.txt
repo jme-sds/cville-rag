@@ -1,0 +1,11 @@
+gradio
+torch
+transformers
+accelerate
+langchain-huggingface
+langchain-community
+faiss-gpu
+numpy<2
+tqdm
+sentence_transformers
+spaces
