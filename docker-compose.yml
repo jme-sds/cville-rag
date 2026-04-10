@@ -1,0 +1,42 @@
+services:
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/placeholder/cville-rag/backend:latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      # FAISS index (read-only mount so it isn't baked into the image)
+      - ./index:/app/index:ro
+      # Cache downloaded HuggingFace models across restarts
+      - hf-cache:/root/.cache/huggingface
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - VECDB_PATH=/app/index
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 5
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/placeholder/cville-rag/frontend:latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - RAG_SERVICE_URL=http://backend:8000
+      - SITE_URL=${SITE_URL:-http://localhost:3000}
+      - DEV_MODE=${DEV_MODE:-true}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  hf-cache:

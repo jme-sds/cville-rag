@@ -1,0 +1,64 @@
+services:
+
+  backend:
+    image: ghcr.io/jme-sds/cville-rag/backend:latest
+    restart: always
+    networks:
+      - internal
+    volumes:
+      - ./index:/app/index:ro
+      - hf-cache:/root/.cache/huggingface
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - VECDB_PATH=/app/index
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 4G   # embedding model (Qwen3-0.6B in fp32) ≈ 2.5 GB at runtime
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  frontend:
+    image: ghcr.io/jme-sds/cville-rag/frontend:latest
+    restart: always
+    networks:
+      - internal
+    ports:
+      # Bind to localhost only — cloudflared on the host connects here.
+      # Not exposed to the public internet directly.
+      - "127.0.0.1:3000:3000"
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - RAG_SERVICE_URL=http://backend:8000
+      - SITE_URL=https://${DOMAIN}
+      - DEV_MODE=false
+    depends_on:
+      backend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  hf-cache:
